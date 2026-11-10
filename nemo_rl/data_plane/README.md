@@ -1040,6 +1040,14 @@ memory > offload_threshold ──> SSD copy written ──> memory copy dropped
   instead of reading pinned memory in place. That read also fetches objects
   already on SSD. A restore retries a write that finds memory full while
   eviction frees space. See "Experimental Mooncake storage checkpoints".
+- **A read of an offloaded object waits for its owner's read buffer.** The
+  owner serves such a read from a leased region of a per-process read buffer
+  (`MOONCAKE_OFFLOAD_LOCAL_BUFFER_SIZE_BYTES`, 1.25 GB by default); each
+  region is released when its read ends (or after 5 s). When every region is
+  leased, Mooncake answers `BUFFER_OVERFLOW`; TQ alone would retry 3 x 1 s
+  and raise. NeMo-RL reads the affected keys again with capped backoff for up
+  to 120 s, logging one warning. Many consumers reading large offloaded
+  values from one owner at once is the case that fills it.
 - **A put that finds memory full waits; it does not fail.** Mooncake
   accepts a put only into free segment memory, and offload frees memory in
   the background, so a burst of writes can briefly fill every segment. Each
